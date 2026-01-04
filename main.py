@@ -2,13 +2,8 @@ from fastapi import FastAPI
 
 app = FastAPI()
 
-@app.get("/")
-def read_root():
- return {"message": "Hello from sanad_api on Render"}
-
-@app.get("/products")
-def get_products():
- return [
- {"id": 1, "name": "Product A", "price": 10},
- {"id": 2, "name": "Product B", "price": 20},
- ]
+@app.get("/test-file")
+def read_test_file():
+with open("test_sanad.txt", "r", encoding="utf-8") as f:
+content = f.read()
+return {"content": content}
