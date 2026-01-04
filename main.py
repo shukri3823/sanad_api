@@ -1,47 +1,49 @@
 from fastapi import FastAPI, HTTPException, Depends
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy import create_engine, Column, Integer, String, or_
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 import os
 
-# 1. إعداد قاعدة البيانات (نفس الرابط الخاص بك)
+# 1. إعداد قاعدة البيانات (تأكد من صحة الرابط)
 DATABASE_URL = "postgresql://sanad_db_g2je_user:55a9KIecqyh8SfznzU0WEZmsj71r7Eej@dpg-d5d3miggjchc73dfdhkg-a:5432/sanad_db_g2je"
 
-engine = create_engine(DATABASE_URL)
+# إضافة تحسينات للاتصال لبيئة Render
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# 2. نموذج الجدول (Database Model) - أضفنا حقل الهاتف phone
+# 2. الجدول
 class UserDB(Base):
-    __tablename__ = "users_final"
+    __tablename__ = "users_v4"
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
-    phone = Column(String, nullable=True) # حقل إضافي للرقم
+    phone = Column(String, nullable=True)
     password = Column(String, nullable=False)
 
-Base.metadata.create_all(bind=engine)
+# إنشاء الجداول عند التشغيل
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print(f"Database error: {e}")
 
-# 3. نماذج Pydantic (المسؤولة عن استقبال البيانات من المستخدم)
+# 3. نماذج البيانات
 class UserCreate(BaseModel):
     username: str
     email: str
-    phone: Optional[str] = None # يستقبل رقم الهاتف (اختياري)
     password: str
+    phone: Optional[str] = None
 
-# نموذج عرض البيانات (ما يرجع للمستخدم بعد النجاح)
 class UserResponse(BaseModel):
     id: int
     username: str
     email: str
     phone: Optional[str] = None
-
     class Config:
         from_attributes = True
 
-# 4. تطبيق FastAPI والاعتمادات
-app = FastAPI()
+app = FastAPI(title="Sanad API Final")
 
 def get_db():
     db = SessionLocal()
@@ -50,35 +52,30 @@ def get_db():
     finally:
         db.close()
 
-# 5. المسارات المصححة تماماً
+# --- 4. المسارات ---
 
 @app.get("/")
 def home():
-    return {"status": "Sanad API Online"}
+    return {"message": "API IS LIVE", "check": "Go to /docs to see POST"}
 
 @app.post("/users", response_model=UserResponse)
-def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    # التأكد من عدم تكرار اليوزر أو الإيميل
-    check_exists = db.query(UserDB).filter(
-        or_(UserDB.username == user.username, UserDB.email == user.email)
-    ).first()
+def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    # التحقق من التكرار
+    exists = db.query(UserDB).filter(or_(UserDB.username == user.username, UserDB.email == user.email)).first()
+    if exists:
+        raise HTTPException(status_code=400, detail="User or Email already exists")
     
-    if check_exists:
-        raise HTTPException(status_code=400, detail="Username or Email already registered")
-    
-    # إنشاء الكائن وتخزينه
-    new_user = UserDB(
+    db_user = UserDB(
         username=user.username,
         email=user.email,
         phone=user.phone,
-        password=user.password # نصيحة: في المستقبل يفضل تشفيرها
+        password=user.password
     )
-    
-    db.add(new_user)
+    db.add(db_user)
     db.commit()
-    db.refresh(new_user) # لجلب الـ ID الذي تم إنشاؤه تلقائياً
-    return new_user
+    db.refresh(db_user)
+    return db_user
 
 @app.get("/users", response_model=List[UserResponse])
-def list_all_users(db: Session = Depends(get_db)):
+def get_users(db: Session = Depends(get_db)):
     return db.query(UserDB).all()
