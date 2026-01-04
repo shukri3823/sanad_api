@@ -120,3 +120,23 @@ def login(data: LoginRequest):
  if not user or user.password != data.password:
  raise HTTPException(status_code=401, detail="Invalid username or password")
  return {"message": "Login successful", "user_id": user.id}
+
+
+@app.post("/users", response_model=UserResponse)
+def create_user(user: UserCreate):
+ db: Session = next(get_db())
+ existing_user = db.query(UserDB).filter(
+ or_(UserDB.username == user.username, UserDB.email == user.email)
+ ).first()
+ if existing_user:
+ raise HTTPException(status_code=400, detail="Username or email already exists")
+
+ new_user = UserDB(
+ username=user.username,
+ email=user.email,
+ password=user.password
+ )
+ db.add(new_user)
+ db.commit()
+ db.refresh(new_user)
+ return new_user
