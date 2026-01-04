@@ -5,15 +5,17 @@ from sqlalchemy import create_engine, Column, Integer, String, or_
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
 import os
 
-# ==== إعداد رابط قاعدة البيانات من متغير البيئة أو ثابتًا مؤقتًا ====
+# إعداد رابط قاعدة البيانات من متغير البيئة أو ثابتًا مؤقتًا
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
  DATABASE_URL = "postgresql://sanad_db_g2je_user:55a9KIecqyh8SfznzU0WEZmsj71r7Eej@dpg-d5d3miggjchc73dfdhkg-a:5432/sanad_db_g2je"
 
+# إعداد SQLAlchemy
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# نموذج جدول المستخدمين في قاعدة البيانات
 class UserDB(Base):
  __tablename__ = "users"
 
@@ -22,8 +24,10 @@ class UserDB(Base):
  email = Column(String, unique=True, index=True, nullable=False)
  password = Column(String, nullable=False)
 
+# إنشاء الجداول
 Base.metadata.create_all(bind=engine)
 
+# نماذج Pydantic
 class UserCreate(BaseModel):
  username: str
  email: str
@@ -41,8 +45,10 @@ class LoginRequest(BaseModel):
  username: str
  password: str
 
+# تطبيق FastAPI
 app = FastAPI()
 
+# دالة الحصول على جلسة قاعدة البيانات
 def get_db():
  db = SessionLocal()
  try:
@@ -50,10 +56,16 @@ def get_db():
  finally:
  db.close()
 
+# المسارات الأساسية
 @app.get("/")
 def read_root():
- return {"message": "Sanad API with PostgreSQL is running!"}
+ return {"message": "Sanad API is working!"}
 
+@app.get("/test")
+def read_test():
+ return {"status": "ok", "note": "This is a test endpoint"}
+
+# إنشاء مستخدم جديد
 @app.post("/users", response_model=UserResponse)
 def create_user(user: UserCreate):
  db: Session = next(get_db())
@@ -73,12 +85,14 @@ def create_user(user: UserCreate):
  db.refresh(new_user)
  return new_user
 
+# جلب جميع المستخدمين
 @app.get("/users", response_model=List[UserResponse])
 def list_users():
  db: Session = next(get_db())
  users = db.query(UserDB).all()
  return users
 
+# جلب مستخدم حسب id
 @app.get("/users/{user_id}", response_model=UserResponse)
 def get_user(user_id: int):
  db: Session = next(get_db())
@@ -87,6 +101,7 @@ def get_user(user_id: int):
  raise HTTPException(status_code=404, detail="User not found")
  return user
 
+# حذف مستخدم
 @app.delete("/users/{user_id}")
 def delete_user(user_id: int):
  db: Session = next(get_db())
@@ -97,6 +112,7 @@ def delete_user(user_id: int):
  db.commit()
  return {"message": "User deleted"}
 
+# تسجيل دخول
 @app.post("/login")
 def login(data: LoginRequest):
  db: Session = next(get_db())
